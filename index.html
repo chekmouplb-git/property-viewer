@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Property Details</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px 20px;
+      max-width: 480px;
+      margin: 0 auto;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #e8eaf0;
+    }
+
+    .header h2 {
+      font-size: 18px;
+      color: #1a1a2e;
+      margin-top: 6px;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .badge-par        { background: #eef2ff; color: #3b5bdb; }
+    .badge-high       { background: #fff4e6; color: #e67700; }
+    .badge-low        { background: #e6fcf5; color: #0ca678; }
+    .badge-default    { background: #f1f3f5; color: #495057; }
+
+    .field { margin-bottom: 16px; }
+
+    .label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #6b7280;
+      margin-bottom: 3px;
+    }
+
+    .value {
+      font-size: 15px;
+      color: #111827;
+      word-break: break-word;
+      background: #f9fafb;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+
+    /* Condemned styling */
+    .value.condemned {
+      color: #c0392b;
+      font-weight: 700;
+      background: #fff5f5;
+      border-color: #ffc9c9;
+      text-transform: uppercase;
+    }
+
+    .condemned-icon {
+      margin-right: 4px;
+    }
+
+    .loading {
+      text-align: center;
+      color: #6b7280;
+      padding: 40px 0;
+    }
+
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #e5e7eb;
+      border-top-color: #3b5bdb;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 14px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error {
+      text-align: center;
+      padding: 30px 0;
+    }
+
+    .error h3 { color: #c0392b; margin-bottom: 8px; }
+    .error p  { color: #6b7280; font-size: 14px; }
+
+    .note {
+      margin-top: 20px;
+      font-size: 12px;
+      color: #9ca3af;
+      text-align: center;
+    }
+
+    button {
+      margin-top: 14px;
+      padding: 10px 22px;
+      border: none;
+      border-radius: 8px;
+      background: #3b5bdb;
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div class="card" id="content">
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>Loading property details...</p>
+    </div>
+  </div>
+
+  <script>
+    // ── Replace with your actual Apps Script /exec URL ──
+    var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyKe723H_6VqF54Bt5hNZCADfkB6smIjGGwZIORhQK754tznDTgXF81qU4yd7iZW4GfTg/exec";
+
+    var params    = new URLSearchParams(window.location.search);
+    var rowId     = params.get("id");
+    var sheetName = params.get("sheet") || "PAR (50k ABOVE)";
+
+    // Returns true if condition text means condemned
+    function isCondemned(value) {
+      var v = value.toUpperCase();
+      return v.indexOf("CONDEMN") !== -1;  // catches CONDEMNED, CONDEMN, etc.
+    }
+
+    // Returns badge class based on sheet name
+    function badgeClass(sheet) {
+      var s = sheet.toUpperCase();
+      if (s.indexOf("PAR")  !== -1) return "badge badge-par";
+      if (s.indexOf("HIGH") !== -1) return "badge badge-high";
+      if (s.indexOf("LOW")  !== -1) return "badge badge-low";
+      return "badge badge-default";
+    }
+
+    function field(label, value) {
+      var condemned = isCondemned(value);
+      var valueClass = condemned ? "value condemned" : "value";
+      var displayValue = condemned
+        ? '<span class="condemned-icon">⚠️</span>' + value
+        : value;
+      return '<div class="field">'
+           + '<div class="label">' + label + '</div>'
+           + '<div class="' + valueClass + '">' + displayValue + '</div>'
+           + '</div>';
+    }
+
+    function showError(msg) {
+      document.getElementById("content").innerHTML =
+        '<div class="error">'
+        + '<h3>⚠️ Not Found</h3>'
+        + '<p>' + msg + '</p>'
+        + '<button onclick="location.reload()">Try Again</button>'
+        + '</div>';
+    }
+
+    if (!rowId) {
+      showError("No property ID found in this QR code.");
+    } else {
+      var apiUrl = APPS_SCRIPT_URL
+                 + "?id="    + encodeURIComponent(rowId)
+                 + "&sheet=" + encodeURIComponent(sheetName);
+
+      fetch(apiUrl)
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.error) { showError(data.error); return; }
+
+          var html = '<div class="header">'
+                   + '<div class="' + badgeClass(sheetName) + '">📋 ' + sheetName + '</div>'
+                   + '<h2>' + (data.propertyNum || "Property Details") + '</h2>'
+                   + '</div>';
+
+          html += field("Location",        data.location);
+          html += field("Article",         data.article);
+          html += field("Description",     data.description);
+          html += field("Property Number", data.propertyNum);
+          html += field("Condition",       data.condition);
+          html += field("End User",        data.endUser);
+          html += '<p class="note">Contact your Property Custodian for concerns.</p>';
+
+          document.getElementById("content").innerHTML = html;
+        })
+        .catch(function() {
+          showError("Could not reach the server. Please check your connection and try again.");
+        });
+    }
+  </script>
+</body>
+</html>
